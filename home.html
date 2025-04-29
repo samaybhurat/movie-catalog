@@ -26,6 +26,7 @@
 <h1 id="welcomeMessage">Welcome 🎬</h1>
 <button onclick="logout()">Logout</button>
 <button onclick="goToFavorites()">My Favorites ❤️</button>
+<button id="rerun" style="margin-top:10px;">Re-generate catalog 🔄</button>
 
 <!-- poster grid will replace this div -->
 <div id="grid"></div>
@@ -158,6 +159,16 @@ function shortlistByTitle(title){
     }).then(()=>alert('Added to favorites!'));
   });
 }
+</script>
+
+<script>
+/* Run old_script.py on the server, then reload */
+document.getElementById('rerun').onclick = async () => {
+  const b = document.getElementById('rerun');
+  b.disabled = true; b.textContent = 'Running…';
+  await fetch('/run-script', { method: 'POST' });
+  location.reload();
+};
 </script>
 
 </body>
