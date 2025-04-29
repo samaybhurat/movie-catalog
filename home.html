@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Home · Movie Catalogue</title>
+
+  <!-- site look + copied grid styles -->
+  <style>
+    body{background:#121212;color:#fff;font-family:Arial,Helvetica,sans-serif;
+         text-align:center;margin-top:100px}
+    h1{margin-bottom:20px}
+    button{padding:10px 20px;background:#e50914;border:none;color:#fff;cursor:pointer}
+    button:hover{background:#b00610}
+
+    /* styles originally in movie_catalog.html */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+          gap:1rem;padding:1rem}
+    .card{background:#222;border-radius:12px;overflow:hidden;box-shadow:0 2px 6px #0009}
+    .card img{width:100%;display:block}
+    .card a{text-decoration:none;color:#0af}
+    .card h3{font-size:1rem;margin:0.5rem}
+  </style>
+</head>
+<body>
+
+<h1 id="welcomeMessage">Welcome 🎬</h1>
+<button onclick="logout()">Logout</button>
+<button onclick="goToFavorites()">My Favorites ❤️</button>
+
+<!-- poster grid will replace this div -->
+<div id="grid"></div>
+
+<!-- ───────── pull / inject grid and add buttons ───────── -->
+<script>
+fetch('/catalog')
+  .then(r => r.text())
+  .then(html => {
+    const section = new DOMParser()
+        .parseFromString(html,'text/html')
+        .querySelector('section.grid');
+
+    document.getElementById('grid').replaceWith(section);
+
+    /* add Vote + Favorite controls to every card */
+    section.querySelectorAll('.card').forEach(card=>{
+      const title = card.querySelector('h3').innerText.trim();
+      const box = document.createElement('div');
+      box.style='padding:6px 0;text-align:center';
+      box.innerHTML = `
+        <span id="votes-${title.replaceAll(' ','_')}">Votes: 0</span><br>
+        <button onclick="voteByTitle('${title}')">Vote 👍</button>
+        <button style="margin-left:6px"
+                onclick="shortlistByTitle('${title}')">Favorite ❤️</button>`;
+      card.appendChild(box);
+    });
+
+    /* fill vote counts after DOM injected */
+    fetchMoviesByTitle();
+  });
+</script>
+
+<!-- ───────── Firebase SDKs ───────── -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+/* Your project keys */
+const firebaseConfig = {
+  apiKey: "AIzaSyCyn0iF62jqexzbBo_ReLx50wD3ndWqChQ",
+  authDomain: "movie-catalogue-b72a9.firebaseapp.com",
+  projectId: "movie-catalogue-b72a9",
+  appId: "1:864264403930:web:67a8c00bcf759595b0dee3"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+/* session handling */
+auth.onAuthStateChanged(user=>{
+  if(user){
+    const name = user.displayName || "Guest";
+    document.getElementById('welcomeMessage').innerText = `Welcome, ${name}! 🎬`;
+  } else {
+    window.location.href = "/";
+  }
+});
+
+/* nav buttons */
+function logout(){
+  auth.signOut().then(()=>location.href="/");
+}
+function goToFavorites(){
+  location.href="/favorites";
+}
+
+/* ───────── Firestore helpers & buttons ───────── */
+function seedMovieDoc(ref,title,posterURL=''){
+  return ref.set({
+    title        : title,
+    posterURL    : posterURL,
+    votes        : 0,
+    shortlistedBy: [],
+    votedBy      : []
+  },{merge:true});
+}
+
+function docByTitle(title){
+  return db.collection('movies').where('title','==',title).limit(1);
+}
+
+function fetchMoviesByTitle(){
+  document.querySelectorAll('.card h3').forEach(h3=>{
+    const title = h3.innerText.trim();
+    docByTitle(title).get().then(q=>{
+      if(q.empty) return;
+      const votes = q.docs[0].data().votes || 0;
+      const span  = document.getElementById('votes-'+title.replaceAll(' ','_'));
+      span.innerText = 'Votes: '+votes;
+    });
+  });
+}
+
+/* Vote 👍 */
+function voteByTitle(title){
+  docByTitle(title).get().then(q=>{
+    let ref,data;
+    if(q.empty){
+      ref = db.collection('movies').doc();
+      data={}; seedMovieDoc(ref,title);
+    } else {
+      ref=q.docs[0].ref; data=q.docs[0].data();
+    }
+    const user=auth.currentUser;
+    if(!user) return alert('Log in first');
+    if((data.votedBy||[]).includes(user.uid))
+       return alert('You already voted!');
+    ref.update({
+      votes  : firebase.firestore.FieldValue.increment(1),
+      votedBy: firebase.firestore.FieldValue.arrayUnion(user.uid)
+    }).then(fetchMoviesByTitle);
+  });
+}
+
+/* Favorite ❤️ */
+function shortlistByTitle(title){
+  docByTitle(title).get().then(q=>{
+    let ref;
+    if(q.empty){
+      ref=db.collection('movies').doc();
+      seedMovieDoc(ref,title);
+    } else ref=q.docs[0].ref;
+    const user=auth.currentUser;
+    if(!user) return alert('Log in first');
+    ref.update({
+      shortlistedBy: firebase.firestore.FieldValue.arrayUnion(user.uid)
+    }).then(()=>alert('Added to favorites!'));
+  });
+}
+</script>
+
+</body>
+</html>

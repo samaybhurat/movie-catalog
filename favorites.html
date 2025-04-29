@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>My Favorites - Movie Catalogue</title>
+  <style>
+    body { background-color: #121212; color: white; font-family: Arial, sans-serif; text-align: center; margin-top: 100px; }
+    h1 { margin-bottom: 20px; }
+    button { padding: 10px 20px; background-color: #e50914; color: white; border: none; cursor: pointer; }
+    button:hover { background-color: #b00610; }
+  </style>
+</head>
+<body>
+
+<h1 id="welcomeMessage">My Favorite Movies 🎬❤️</h1>
+<button onclick="logout()">Logout</button>
+<button onclick="window.location.href='/home'">⬅ Home</button>
+<div id="moviesContainer" style="display: flex; flex-wrap: wrap; justify-content: center; margin-top: 50px;"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCyn0iF62jqexzbBo_ReLx50wD3ndWqChQ",
+    authDomain: "movie-catalogue-b72a9.firebaseapp.com",
+    projectId: "movie-catalogue-b72a9",
+    appId: "1:864264403930:web:67a8c00bcf759595b0dee3"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  firebase.auth().onAuthStateChanged(function(user) {
+    if (user) {
+      const name = user.displayName || "Guest";
+      document.getElementById("welcomeMessage").innerText = `Welcome, ${name}! Your Favorites 🎬❤️`;
+      fetchFavorites(user.uid);
+    } else {
+      window.location.href = "/";
+    }
+  });
+
+  function logout() {
+    auth.signOut().then(() => {
+      window.location.href = "login.html";
+    }).catch((error) => {
+      console.log(error);
+    });
+  }
+
+  function fetchFavorites(userId) {
+    db.collection("movies").get()
+      .then((querySnapshot) => {
+        querySnapshot.forEach((doc) => {
+          const movie = doc.data();
+          const shortlistedBy = movie.shortlistedBy || [];
+          if (shortlistedBy.includes(userId)) {
+            displayMovie(movie);
+          }
+        });
+      })
+      .catch((error) => {
+        console.error("Error fetching favorites: ", error);
+      });
+  }
+
+  function displayMovie(movie) {
+    const container = document.getElementById('moviesContainer');
+    const card = document.createElement('div');
+    card.style.width = '200px';
+    card.style.margin = '20px';
+    card.style.backgroundColor = '#1e1e1e';
+    card.style.padding = '10px';
+    card.style.borderRadius = '10px';
+    card.style.textAlign = 'center';
+
+    card.innerHTML = `
+      <img src="${movie.posterURL}" alt="${movie.title}" style="width:100%; border-radius: 10px;">
+      <h3 style="color:white;">${movie.title}</h3>
+    `;
+
+    container.appendChild(card);
+  }
+</script>
+
+</body>
+</html>
